@@ -355,7 +355,7 @@ def concat_pdf(pdf_list, output_name):
 
 
 class Exhibit():
-    '''Support class for making pages of Board-style charts. Each Exhibit instance corresponds to one pdf/ps page.
+    '''Support class for making pages of charts and tables. Each Exhibit instance corresponds to one pdf/ps page.
     In the following, "panel" is used as a generic term for charts and tables.
 
     Inputs:

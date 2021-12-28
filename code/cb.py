@@ -25,14 +25,14 @@ Exhibit
 
 #Linux package versions used in testing
 #Python > 3.8.8
-#matplotlib > 3.0.2
-#pandas > 1.0.0
+#matplotlib > 3.3.4
+#pandas > 1.2.4
 #PyPDF2 > 1.26.0
 
 #Windows package versions used in testing
-#Python > 3.7.9
-#matplotlib > 3.0.2
-#pandas > 1.1.2
+#Python > 3.8.1
+#matplotlib > 3.2.0
+#pandas > 1.2.0
 #PyPDF2 > 1.26.0
 
 import matplotlib, matplotlib.pyplot as plt, matplotlib.font_manager as fman, matplotlib.dates as mdates, matplotlib.ticker as ticker

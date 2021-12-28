@@ -1,5 +1,5 @@
 import sys
-import colby as cb
+from colby import cb
 import os
 import pandas as pd
 from datetime import datetime

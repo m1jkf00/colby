@@ -1,5 +1,5 @@
 import sys
-import colby as cb
+from colby import cb
 
 exhibit = cb.Exhibit([3,2], normal_font = "texgyreheros-regular.otf", bold_font = "texgyreheros-bold.otf", 
                      italic_font = "texgyreheros-italic.otf", bold_italic_font = "texgyreheros-bolditalic.otf")

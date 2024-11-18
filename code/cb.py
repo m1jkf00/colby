@@ -2,7 +2,7 @@
 The Exhibit class provides the main interface for building panels, but this module also contains several support functions.
 Some of these functions will be exclusively used in the backend for Exhibit, but others, such as concat_pdf, concat_ps, fixed2data, and gen_ts_tick_label_range, do have application on the user side as well.
 
-Below is a listing of the function names and the one class name. Assuming you imported this module with "from colby import cb", 
+Below is a listing of the function and class names. Assuming you imported this module with "from colby import cb", 
 use help(cb.name), where name is a function or class name from the lists below, for more information.
 
 Functions:
@@ -24,16 +24,16 @@ Exhibit
 '''
 
 #Linux package versions used in testing
-#Python > 3.8.8
-#matplotlib > 3.3.4
-#pandas > 1.2.4
-#PyPDF2 > 1.26.0
+#Python > 3.13.0
+#matplotlib > 3.9.2
+#pandas > 2.2.3
+#PyPDF2 > 3.0.1
 
 #Windows package versions used in testing
-#Python > 3.8.1
-#matplotlib > 3.2.0
-#pandas > 1.2.0
-#PyPDF2 > 1.26.0
+#Python > 3.12.6
+#matplotlib > 3.9.2
+#pandas > 2.2.3
+#PyPDF2 > 3.0.1
 
 import matplotlib, matplotlib.pyplot as plt, matplotlib.font_manager as fman, matplotlib.dates as mdates, matplotlib.ticker as ticker
 import sys
@@ -104,9 +104,9 @@ def impose_ts_xrange(ser, x_range):
     '''
     
     if isinstance(x_range[0], numbers.Number):
-        date_bounds = [pd.Timestamp(str(mdates.num2date(coord))[0:10], freq = "D") for coord in x_range]
+        date_bounds = [pd.Timestamp(str(mdates.num2date(coord))[0:10], unit = "D") for coord in x_range]
     else:
-        date_bounds = [pd.Timestamp(coord, freq = "D") for coord in x_range]
+        date_bounds = [pd.Timestamp(coord, unit = "D") for coord in x_range]
     new_series = copy.deepcopy(ser)
     return(new_series[date_bounds[0]:(date_bounds[1] + timedelta(days = 1))])
 
@@ -163,7 +163,7 @@ def center_ts_obs(ser, ser_freq = None, number_stacks = 1, curr_stack = 1, width
     ser: pandas.Series whose indexes should be adjusted. The series' frequency is expected to be in ["<Minute>", "<Hour>", "<Day>", "<BusinessDay>", "Week: weekday=6>", "<MonthEnd>", "<QuarterEnd: startingMonth=12>", "<2 * QuarterEnds: startingMonth=12>", "<YearEnd: month=12>"]
          If not, the Series is returned with no changes.
     ser_freq: str indicating frequency of ser
-              Should be an element of ["min", "h", "d", "b", "w", "m", "q", "a"] (not case-sensitive), which maps to ["minute", "hour", "daily", "business", "week", "month", "quarter", "annual"].
+              Should be an element of ["min", "h", "d", "b", "w", "m", "q", "a", "y"] (not case-sensitive), which maps to ["minute", "hour", "daily", "business", "week", "month", "quarter", "annual", "annual"].
               You may supply "5", "10", "15", "20", or "30" as a prefix to "min" (ie "5min"); "2", "3", "4", "6", "8", or "12" as a prefix to "h"; "6" as a prefix for "m"; or "2" as a prefix to "q" to apply a skip parameter.
               Defaults to None, in which case this function tries to automatically determine the frequency based on ser's attributes.
               This argument is only useful when ser does not have a freq attribute (occassionally happens when ser is subsetted down to 1 observation).
@@ -186,11 +186,14 @@ def center_ts_obs(ser, ser_freq = None, number_stacks = 1, curr_stack = 1, width
     else:
         shorthand_freq_dict = {"min": "<Minute>", "h": "<Hour>", "d": "<Day>", "b": "<BusinessDay>",
                                "w": "Week: weekday=6>", "m": "<MonthEnd>", "6m": "<6 * MonthEnds>", "q": "<QuarterEnd: startingMonth=12>", 
-                               "2q": "<2 * QuarterEnds: startingMonth=12>", "a": "<YearEnd: month=12>"}
+                               "2q": "<2 * QuarterEnds: startingMonth=12>", "a": "<YearEnd: month=12>", "y": "<YearEnd: month=12>"}
         for i in [5, 10, 15, 20, 30]:
             shorthand_freq_dict[f'{str(i)}min'] = f'<{str(i)} Minutes>'
         for i in [2, 3, 4, 6, 8, 12]:
             shorthand_freq_dict[f'{str(i)}h'] = f'<{str(i)} Hours>'
+        for dict_value in list(shorthand_freq_dict.values()):
+            shorthand_freq_dict[dict_value.lower()] = dict_value
+            
         ser_freq = shorthand_freq_dict[ser_freq.lower()]
     freq_dict = {"<Minute>": 1/(60*24), "<Hour>": 1/24,
                  "<Day>": 1, "<BusinessDay>": 1,
@@ -202,14 +205,14 @@ def center_ts_obs(ser, ser_freq = None, number_stacks = 1, curr_stack = 1, width
         freq_dict[f'<{str(i)} Hours>'] = i/24
     for x in range(0,7):
         freq_dict["<Week: weekday=" + str(x) + ">"] = 7
+    
     freq_check = (ser_freq == "<2 * QuarterEnds: startingMonth=12>" and new_series.index[0].month not in [6,12])
+    period_length = freq_dict[ser_freq]
+    bar_width = width_coef * period_length/number_stacks
+    
     if freq_check: #special treatment for when semi-annual series is already centered
-        period_length = freq_dict[ser_freq]
-        bar_width = width_coef * period_length/number_stacks
         new_series.index = (new_series.index + timedelta(days = period_length/2)) - timedelta(days = ((.5 - width_coef/2) * period_length) + ((curr_stack - .5) * bar_width) - pos_adj)
     elif ser_freq in freq_dict.keys():
-        period_length = freq_dict[ser_freq]
-        bar_width = width_coef * period_length/number_stacks
         new_series.index = new_series.index - timedelta(days = ((.5 - width_coef/2) * period_length) + ((curr_stack - .5) * bar_width) - pos_adj)
     return(new_series)
 
@@ -242,7 +245,7 @@ def gen_ts_tick_label_range(start, end, freq, skip = ""):
     Inputs:
     start: date object or date str in %Y-%m-%d format specifying start of date range
     end: date object or date str in %Y-%m-%d format specifying end of date range
-    freq: str specifying frequency of range to be returned. This list has the most common choices: ["S", "MIN", "H", "D", "B", "W", "M", "Q", "A"]
+    freq: str specifying frequency of range to be returned. This list has the most common choices: ["S", "MIN", "H", "D", "B", "W", "M", "Q", "A", "Y"]
     skip: int or integer string specifying how many periods to skip between elements of the date range
           The default of "" (equivalent to 1) does not skip any periods.
 
@@ -255,7 +258,13 @@ def gen_ts_tick_label_range(start, end, freq, skip = ""):
         start = start.to_timestamp()
     if isinstance(end, pd.Period):
         end = end.to_timestamp()
-    return(list(pd.date_range(start, end, freq = f'{str(skip)}{freq}{"S" * (freq not in ["S", "MIN", "H", "D", "B", "W"])}')))
+    
+    freq_dict = {freq_option: freq_option for freq_option in ["S", "MIN", "H", "D", "B", "W", "M", "Q", "A", "Y"]}
+    freq_dict["A"] = "Y"
+    for intraday_freq in ["S", "MIN", "H"]:
+        freq_dict[intraday_freq] = intraday_freq.lower()
+    
+    return(list(pd.date_range(start, end, freq = f'{str(skip)}{freq_dict[freq]}{"S" * (freq_dict[freq] not in ["S", "MIN", "H", "D", "B", "W"])}')))
 
 
 def format_month_irregular(date_obj):
@@ -291,7 +300,7 @@ def form_partition(h_start, h_end, v_start, v_end, nrow, ncol,
     relative_row_sizes: iterable of numeric objects with length nrow giving relative height of each row (top row should come first)
                         Defaults to [1] * nrow (all rows have the same height)
     relative column_sizes: iterable of numeric objects with length ncol giving relative width of each column (left-most column should come first)
-                           Defaults to [1] * ncol (all columns have the same height)
+                           Defaults to [1] * ncol (all columns have the same width)
 
     Output:
     form_partition(): dictionary with keys "rows" and "cols"
@@ -347,10 +356,11 @@ def concat_pdf(pdf_list, output_name):
     concat_ps(): None, but creates specified output file
     '''
 
-    pdf_writer = Pdf.PdfFileMerger()
+    pdf_writer = Pdf.PdfMerger()
     for fin in pdf_list:
         pdf_writer.append(fin)
     pdf_writer.write(output_name)
+    pdf_writer.close()
     return(None)
 
 
@@ -1308,10 +1318,10 @@ class Exhibit():
         panel_alias: the panel alias for the chart to add a line plot to.
         ser: pd.Series to be plotted. ser should have a PeriodIndex or DatetimeIndex.
         ser_freq: str indicating frequency of ser
-                  Should be an element of ["min", "h", "d", "b", "w", "m", "q", "a"] (not case-sensitive), which maps to ["minute", "hour", "daily", "business", "week", "month", "quarter", "annual"].
+                  Should be an element of ["min", "h", "d", "b", "w", "m", "q", "a", "y"] (not case-sensitive), which maps to ["minute", "hour", "daily", "business", "week", "month", "quarter", "annual", "annual"].
                   You may supply "5", "10", "15", "20", or "30" as a prefix to "min" (ie "5min"); "2", "3", "4", "6", "8", or "12" as a prefix to "h"; "6" as a prefix for "m"; or "2" as a prefix to "q" to apply a skip parameter.
                   Defaults to None, in which case an attempt is made to determine the frequency based on ser's attributes.
-                  This argument is only useful when ser does not have a freq attribute (occassionally happens when ser is subsetted down to 1 observation).
+                  This argument is only useful when ser does not have a freq attribute (when dealing with pd.Datetime, also occassionally happens when ser is subsetted down to 1 observation).
         number_stacks: positive int specifying how many separate stacks (with overlapping date coverage) are to be plotted on this panel (used for centering purposes)
                        Defaults to 1. Should only be altered when trying to align a line series with a dodge bar chart (HEAVILY discouraged).
         curr_stack: positive int specifying what number stack this function call is building (if this is the first plot_panel_barstack() call, this is 1; if it's the second call, use 2)
@@ -1343,7 +1353,29 @@ class Exhibit():
 
         curr_ax = self.panel_dict[panel_alias]
         x_range = curr_ax.get_xlim()
-        curr_ax.plot(center_ts_obs(impose_ts_xrange(period_to_ts(ser), x_range), ser_freq, number_stacks, curr_stack, bar_width_coef, pos_adj), color = line_color, linestyle = line_style, linewidth = line_width, marker = marker_type, markersize = marker_size, alpha = alpha)
+        
+        if type(ser_freq) is str:
+            ser_freq_dict = {x: x.upper() for x in ["min", "h", "d", "b", "w", "m", "6m", "q", "2q", "a", "y"]}
+            ser_freq_dict["a"] = "Y"
+            for x in ["", "5", "10", "15", "20", "30"]:
+                ser_freq_dict[f'{x}min'] = f'{x}min'
+            
+            for x in ["", "2", "3", "4", "6", "8", "12"]:
+                ser_freq_dict[f'{x}h'] = f'{x}h'
+            
+            ser_freq_obj = pd.Period("1970-01-01", freq = ser_freq_dict[ser_freq.lower()]).freq
+        else:
+            if hasattr(ser.index, "freq"):
+                if ser.index.freq is not None:
+                    ser_freq_obj = ser.index.freq
+                else:
+                    assert len(ser) >= 3, "ser has no stored freq and is not long enough for pd.infer_freq(), so you must specify ser_freq as an argument. See docstring for details."
+                    ser_freq_obj = pd.infer_freq(ser.index)
+            else:
+                assert len(ser) >= 3, "ser has no stored freq and is not long enough for pd.infer_freq(), so you must specify ser_freq as an argument. See docstring for details."
+                ser_freq_obj = pd.infer_freq(ser.index)
+        
+        curr_ax.plot(center_ts_obs(impose_ts_xrange(period_to_ts(ser), x_range), str(ser_freq_obj), number_stacks, curr_stack, bar_width_coef, pos_adj), color = line_color, linestyle = line_style, linewidth = line_width, marker = marker_type, markersize = marker_size, alpha = alpha)
         return(None)
 
 
@@ -1354,10 +1386,10 @@ class Exhibit():
         panel_alias: the panel alias for the chart to add a line plot to.
         ser: pd.Series to be plotted. ser should have a PeriodIndex or DatetimeIndex.
         ser_freq: str indicating frequency of ser
-                  Should be an element of ["min", "h", "d", "b", "w", "m", "q", "a"] (not case-sensitive), which maps to ["minute", "hour", "daily", "business", "week", "month", "quarter", "annual"].
+                  Should be an element of ["min", "h", "d", "b", "w", "m", "q", "a", "y"] (not case-sensitive), which maps to ["minute", "hour", "daily", "business", "week", "month", "quarter", "annual", "annual"].
                   You may supply "5", "10", "15", "20", or "30" as a prefix to "min" (ie "5min"); "2", "3", "4", "6", "8", or "12" as a prefix to "h"; "6" as a prefix for "m"; or "2" as a prefix to "q" to apply a skip parameter.
                   Defaults to None, in which case an attempt is made to determine the frequency based on ser's attributes.
-                  This argument is only useful when ser does not have a freq attribute (occassionally happens when ser is subsetted down to 1 observation).
+                  This argument is only useful when ser does not have a freq attribute (when dealing with pd.Datetime, also occassionally happens when ser is subsetted down to 1 observation).
         number_stacks: positive int specifying how many separate stacks (with overlapping date coverage) are to be plotted on this panel (used for centering purposes)
                        Defaults to 1. Should only be altered when trying to align a scatter series with a dodge bar chart.
         curr_stack: positive int specifying what number stack this function call is building (if this is the first plot_panel_barstack() call, this is 1; if it's the second call, use 2)
@@ -1384,7 +1416,29 @@ class Exhibit():
 
         curr_ax = self.panel_dict[panel_alias]
         x_range = curr_ax.get_xlim()
-        curr_ax.plot(center_ts_obs(impose_ts_xrange(period_to_ts(ser), x_range), ser_freq, number_stacks, curr_stack, bar_width_coef, pos_adj), linestyle = "None", marker = scatter_type, color = scatter_color, markersize = scatter_size, alpha = alpha)
+        
+        if type(ser_freq) is str:
+            ser_freq_dict = {x: x.upper() for x in ["min", "h", "d", "b", "w", "m", "6m", "q", "2q", "a", "y"]}
+            ser_freq_dict["a"] = "Y"
+            for x in ["", "5", "10", "15", "20", "30"]:
+                ser_freq_dict[f'{x}min'] = f'{x}min'
+            
+            for x in ["", "2", "3", "4", "6", "8", "12"]:
+                ser_freq_dict[f'{x}h'] = f'{x}h'
+            
+            ser_freq_obj = pd.Period("1970-01-01", freq = ser_freq_dict[ser_freq.lower()]).freq
+        else:
+            if hasattr(ser.index, "freq"):
+                if ser.index.freq is not None:
+                    ser_freq_obj = ser.index.freq
+                else:
+                    assert len(ser) >= 3, "ser has no stored freq and is not long enough for pd.infer_freq(), so you must specify ser_freq as an argument. See docstring for details."
+                    ser_freq_obj = pd.infer_freq(ser.index)
+            else:
+                assert len(ser) >= 3, "ser has no stored freq and is not long enough for pd.infer_freq(), so you must specify ser_freq as an argument. See docstring for details."
+                ser_freq_obj = pd.infer_freq(ser.index)
+        
+        curr_ax.plot(center_ts_obs(impose_ts_xrange(period_to_ts(ser), x_range), str(ser_freq_obj), number_stacks, curr_stack, bar_width_coef, pos_adj), linestyle = "None", marker = scatter_type, color = scatter_color, markersize = scatter_size, alpha = alpha)
         return(None)
 
 
@@ -1397,10 +1451,10 @@ class Exhibit():
         panel_alias: the panel alias for the chart to add a bar stack to.
         ser_list: list of pd.Series to be plotted. Each Series should have a PeriodIndex or DatetimeIndex with the same frequency.
         ser_freq: str indicating frequency of the series in ser_list
-                  Should be an element of ["min", "h", "d", "b", "w", "m", "q", "a"] (not case-sensitive), which maps to ["minute", "hour", "daily", "business", "week", "month", "quarter", "annual"].
+                  Should be an element of ["min", "h", "d", "b", "w", "m", "q", "a", "y"] (not case-sensitive), which maps to ["minute", "hour", "daily", "business", "week", "month", "quarter", "annual", "annual"].
                   You may supply "5", "10", "15", "20", or "30" as a prefix to "min" (ie "5min"); "2", "3", "4", "6", "8", or "12" as a prefix to "h"; "6" as a prefix for "m"; or "2" as a prefix to "q" to apply a skip parameter.
                   Defaults to None, in which case an attempt is made to determine the frequency based on the series' attributes.
-                  This argument is only useful when a series does not have a freq attribute (occassionally happens when it is subsetted down to 1 observation).
+                  This argument is only useful when ser does not have a freq attribute (when dealing with pd.Datetime, also occassionally happens when ser is subsetted down to 1 observation).
         number_stacks: positive int specifying how many separate stacks (with overlapping date coverage) are to be plotted on this panel (used for centering purposes)
                        Defaults to 1.
         curr_stack: positive int specifying what number stack this function call is building (if this is the first plot_panel_barstack() call, this is 1; if it's the second call, use 2)
@@ -1441,10 +1495,32 @@ class Exhibit():
             alpha_list = [1] * len(ser_list)
         if line_width_list is None:
             line_width_list = [1] * len(ser_list)
-        bar_width = calc_ts_bar_width(str(ser_list[0].index.freq), number_stacks, width_coef = bar_width_coef)
+        
+        if type(ser_freq) is str:
+            ser_freq_dict = {x: x.upper() for x in ["min", "h", "d", "b", "w", "m", "6m", "q", "2q", "a", "y"]}
+            ser_freq_dict["a"] = "Y"
+            for x in ["", "5", "10", "15", "20", "30"]:
+                ser_freq_dict[f'{x}min'] = f'{x}min'
+            
+            for x in ["", "2", "3", "4", "6", "8", "12"]:
+                ser_freq_dict[f'{x}h'] = f'{x}h'
+            
+            ser_freq_obj = pd.Period("1970-01-01", freq = ser_freq_dict[ser_freq.lower()]).freq
+        else:
+            if hasattr(ser_list[0].index, "freq"):
+                if ser_list[0].index.freq is not None:
+                    ser_freq_obj = ser_list[0].index.freq
+                else:
+                    assert len(ser_list[0]) >= 3, "ser_list[0] has no stored freq and is not long enough for pd.infer_freq(), so you must specify ser_freq as an argument. See docstring for details."
+                    ser_freq_obj = pd.infer_freq(ser_list[0].index)
+            else:
+                assert len(ser_list[0]) >= 3, "ser_list[0] has no stored freq and is not long enough for pd.infer_freq(), so you must specify ser_freq as an argument. See docstring for details."
+                ser_freq_obj = pd.infer_freq(ser_list[0].index)
+        
+        bar_width = calc_ts_bar_width(str(ser_freq_obj), number_stacks, width_coef = bar_width_coef)
         x_range = curr_ax.get_xlim()
-    
-        centered_list = [center_ts_obs(impose_ts_xrange(period_to_ts(ser), x_range), ser_freq, number_stacks, curr_stack, bar_width_coef, pos_adj) for ser in ser_list]
+        
+        centered_list = [center_ts_obs(impose_ts_xrange(period_to_ts(ser), x_range), str(ser_freq_obj), number_stacks, curr_stack, bar_width_coef, pos_adj) for ser in ser_list]
         all_index = centered_list[0].index
         for ser_num in range(1,len(centered_list)):
             all_index = all_index.append(centered_list[ser_num].index)
@@ -1633,7 +1709,7 @@ class Exhibit():
 
 
     def plot_panel_cs_pie(self, panel_alias, obs_list, color_list, label_list = None, label_distance = 1.1, auto_pct = None, pct_distance = .6, font_size = 9, 
-                          explode_list = None, shadow = False, start_angle = None, radius = 1, counter_clock = True, wedge_props = None, 
+                          explode_list = None, shadow = False, start_angle = 0, radius = 1, counter_clock = True, wedge_props = None, 
                           center = (0,0), frame = False, rotate_labels = False):
         '''Plots a pie chart on the specified panel.
 
@@ -1659,7 +1735,7 @@ class Exhibit():
         shadow: boolean indicating whether the pie chart should cast a shadow.
                 Defaults to False.
         start_angle: numeric specifying the angle in degrees to offset the first wedge from the x-axis.
-                     Defaults to None for 0.
+                     Defaults to 0.
         radius: postive numeric speicfying the radius of the pie
                 Defaults to 1
         counter_clock: boolean indicating whether wedges should be placed in a counter-clockwise manner
@@ -1992,8 +2068,9 @@ class Exhibit():
 
 
     def format_panel_ts_xaxis(self, panel_alias, minor_pos = None, major_pos = None, mark_years = False, label_dates = None, color = "black", 
-                              minor_length = 3.5, minor_width = 1, major_length = 7, major_width = 1.3, label_fmt = None, irregular_month_fmt= False,
-                              center_labels = True, tick_based_label_centering = True, label_xoffset = 0, label_yoffset = .07, font_size = 10):
+                              minor_length = 3.5, minor_width = 1, major_length = 7, major_width = 1.3, label_fmt = None, irregular_month_fmt = False,
+                              center_labels = True, tick_based_label_centering = True, label_dates_freqs = None, infer_freq_from_fmt = True,
+                              label_xoffset = 0, label_yoffset = .07, font_size = 10):
         '''Adds ticks and date labels to horizontal axis of specified time-series panel. 
         By default, date labels are centered between the first and last tick positions relevant for the time period (the bounds of the x-axis are treated as additional tick positions for this purpose).
         Users can instead center ticks based on the numerical date values that appear on the x-axis (ie not limited to tick positions).
@@ -2031,6 +2108,13 @@ class Exhibit():
                                     Defaults to True, in which case labels are placed between the first and last ticks associated with the relevant time period.
                                     If False, labels are placed between minimum and maximum x-axis values associated with the relevant timestamp.
                                     The tick-based behavior is the default in order to address strange situations when the last x-axis label goes between a tick mark and the right end of the axis.
+        label_dates_freqs: List of str indicating the intended freq of each element of label dates. This argument was added to help deal with the removal of pd.Timestamps' freq attribute.
+                           Expected to be an element of ["S", "MIN", "H", "D", "B", "W", "M", "Q", "A", "Y"] (not case-sensitive).
+                           If the provided list is only 1 element long, all label_dates are assumed to share this freq. Otherwise, the list provided should be the same length as label_dates.
+                           Defaults to None, in which case the function tries to infer the freqs by first checking for freq attributes in label_dates, then based on the label format if infer_freq_from_fmt (explained below) is True, and then finally by using pd.infer_freq.
+        infer_freq_from_fmt: Boolean indicating whether the function should infer label_dates' elements' frequencies (for centering purposes) based on label_fmt or irregulat_month_fmt (as in %Y would imply annual)
+                             This argument is ignored if label_dates_freqs is specified or label_dates' elements already provide a freq parameter to read
+                             Defaults to True, in which case the function will decide label frequency based on the chosen label format.
         label_xoffset: float specifying adjustment in fixed-axis units to horizontal position of labels from what this functions calculates as the strict center
                        Defaults to 0 (ie assumes no error)
         label_yoffset: float specifying vertical distance of date labels from horizontal axis in fixed-axis units
@@ -2054,7 +2138,7 @@ class Exhibit():
         if major_pos is not None:
             curr_ax.xaxis.set_major_locator(ticker.FixedLocator(list(mdates.date2num(major_pos))))
         elif mark_years:
-            major_pos = gen_ts_tick_label_range(mdates.num2date(curr_ax.get_xlim()[0]), mdates.num2date(curr_ax.get_xlim()[1]), "A")
+            major_pos = gen_ts_tick_label_range(mdates.num2date(curr_ax.get_xlim()[0]), mdates.num2date(curr_ax.get_xlim()[1]), "Y")
             curr_ax.xaxis.set_major_locator(ticker.FixedLocator(list(mdates.date2num(major_pos))))
         else:
             curr_ax.tick_params(axis = 'x', which = 'major', bottom = False)
@@ -2064,15 +2148,52 @@ class Exhibit():
                 print("label_fmt must be specified or irregular_month_fmt set to True if label_dates argument is provided.")
                 return(None)
             else:
-                #Need to create an instance of a high-frequency object relative to the dates to be labeled 
-                if max([str(label_dates[0].freq).find("Sec"), str(label_dates[0].freq).find("Min")]) > -1:
-                    dummy_date = pd.Timestamp("1970-01-01 00:00:00", freq = "S")
-                elif str(label_dates[0].freq).find("Hour") > -1:
-                    dummy_date = pd.Timestamp("1970-01-01 00:00:00", freq = "MIN")
-                elif str(label_dates[0].freq).find("Day") > -1:
-                    dummy_date = pd.Timestamp("1970-01-01 00:00:00", freq = "H")
+                if label_dates_freqs is None:
+                    redo = False
+                    if min([hasattr(x, "freq") for x in label_dates]):
+                        label_dates_freqs = [x.freq for x in label_dates]
+                        if None in label_dates_freqs:
+                            redo = True
+
+                    if label_dates_freqs is None or redo:
+                        if infer_freq_from_fmt:
+                            if irregular_month_fmt:
+                                label_dates_freqs = [pd.Period("1970-01-01", freq = "M").freq] * len(label_dates)
+                            elif label_fmt.find("%S") > -1:
+                                label_dates_freqs = [pd.Period("1970-01-01", freq = "s").freq] * len(label_dates)
+                            elif label_fmt.find("%M") > -1:
+                                label_dates_freqs = [pd.Period("1970-01-01", freq = "min").freq] * len(label_dates)
+                            elif label_fmt.find("%H") > -1:
+                                label_dates_freqs = [pd.Period("1970-01-01", freq = "h").freq] * len(label_dates)
+                            elif label_fmt.find("%d") > -1:
+                                label_dates_freqs = [pd.Period("1970-01-01", freq = "D").freq] * len(label_dates)
+                            elif max([label_fmt.find("%m"), label_fmt.find("%b"), label_fmt.find("%B")]) > -1:
+                                label_dates_freqs = [pd.Period("1970-01-01", freq = "M").freq] * len(label_dates)
+                            else:
+                                label_dates_freqs = [pd.Period("1970-01-01", freq = "Y").freq] * len(label_dates)
+                            
+                        else:
+                            assert len(label_dates) >= 3, "label_dates does not have stored freq information and is too short for pd.infer_freq(), so you must specify a freq using label_dates_freqs or infer_freq_from_fmt. See docstring for details."
+                            label_dates_freqs = [pd.infer_freq(label_dates)] * len(label_dates)
                 else:
-                    dummy_date = pd.Timestamp("1970-01-01 00:00:00", freq = "D")
+                    assert len(label_dates_freqs) in [1, len(label_dates)], "label_dates_freqs must be either one-element long or the same length as label_dates."
+                    if len(label_dates_freqs) != len(label_dates):
+                        label_dates_freqs = label_dates_freqs * len(label_dates)
+                    label_dates_freq_dict = {x: x.upper() for x in ["s", "min", "h", "d", "b", "w", "m", "q", "a", "y"]}
+                    label_dates_freq_dict["a"] = "Y"
+                    for x in ["s", "min", "h"]:
+                        label_dates_freq_dict[x] = x
+                    label_dates_freqs = [pd.Period("1970-01-01", freq = label_dates_freq_dict[x.lower()]).freq for x in label_dates_freqs]
+                
+                #Need to create an instance of a high-frequency object relative to the dates to be labeled 
+                if max([str(label_dates_freqs[0]).find("Sec"), str(label_dates_freqs[0]).find("Min")]) > -1:
+                    dummy_range = pd.date_range("1970-01-01 00:00:00", "1970-12-31 23:59:59", freq = "s")
+                elif str(label_dates_freqs[0]).find("Hour") > -1:
+                    dummy_range = pd.date_range("1970-01-01 00:00:00", "1970-12-31 23:59:59", freq = "min")
+                elif str(label_dates_freqs[0]).find("Day") > -1:
+                    dummy_range = pd.date_range("1970-01-01 00:00:00", "1970-12-31 23:59:59", freq = "h")
+                else:
+                    dummy_range = pd.date_range("1970-01-01 00:00:00", "1970-12-31 23:59:59", freq = "D")
                 
                 #sig_xpos is only relevant if tick_based_label_centering == True
                 sig_xpos = list(mdates.date2num(minor_pos)) + list(mdates.date2num(major_pos))
@@ -2082,9 +2203,15 @@ class Exhibit():
                 xlabel_pos = []
                 for ind in range(len(label_dates)):
                     #Need to manually construct true next period to avoid trouble from skip argument
-                    current_date_freq = str(label_dates[ind].freq)[re.search(r'[a-zA-Z]', str(label_dates[ind].freq)).start()]
-                    tmp_date = pd.Timestamp(str(label_dates[ind]), freq = current_date_freq)
-                    next_period_number = mdates.date2num(tmp_date + 1 * tmp_date.freq + 1 * dummy_date.freq)
+                    current_date_freq = str(label_dates_freqs[ind])[re.search(r'[a-zA-Z]', str(label_dates_freqs[ind])).start()]
+                    if current_date_freq in ["S", "H"]:
+                        current_date_freq = current_date_freq.lower()
+                    elif str(label_dates_freqs[ind]).lower().find("min") > -1:
+                        current_date_freq = "min"
+                    
+                    tmp_date = pd.Timestamp(str(label_dates[ind]))
+                    tmp_period = pd.Period(str(label_dates[ind]), freq = current_date_freq)
+                    next_period_number = mdates.date2num(tmp_date + 1 * tmp_period.freq + 1 * dummy_range.freq)
                     if not center_labels:
                         min_mark = mdates.date2num(label_dates[ind])
                         max_mark = mdates.date2num(label_dates[ind])

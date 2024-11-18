@@ -2,9 +2,7 @@ import sys
 import os
 import pandas as pd
 from datetime import datetime
-import cb
-
-os.chdir("../examples")
+from colby import cb
 
 ### The following variables should be set according to individual users' file organization
 normal_font_path = "texgyreheros.gyreheros-regular.otf"
